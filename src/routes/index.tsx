@@ -1,18 +1,15 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQueries, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Image } from '@unpic/react'
-import { AlertTriangle, RefreshCw, Play, Music, User, Shuffle, SkipBack, Pause, SkipForward, Repeat, Repeat1, Volume2 } from 'lucide-react'
 import type { Song } from '@/data/types'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, } from '@/components/ui/card'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Progress } from '@/components/ui/progress'
+import { Card, CardContent } from '@/components/ui/card'
 import { getPlatform, getThumbnail, getTitle } from '@/lib/songUtils'
 import { getCurrentUser } from '@/lib/auth'
 import { getSongs } from '@/data/songs'
 import { getUserById } from '@/data/users'
 import { SongList } from '@/components/SongList'
+import { PlayerControls } from '@/components/PlayerControls'
+import { NowPlaying } from '@/components/NowPlaying'
 
 export const Route = createFileRoute('/')({ component: App })
 
@@ -30,34 +27,28 @@ export function App() {
     })
 
     const {
-        data: songs = [],
+        data: songsData = [],
         isLoading: songsLoading,
         error: songsError,
         refetch: refetchSongs,
     } = useQuery<Array<Song>>({
         queryKey: ['songs'],
-        queryFn: getSongs,
+        queryFn: async () => {
+            const songs = await getSongs()
+            const songsWithTitles = await Promise.all(
+                songs.map(async (song) => ({
+                    ...song,
+                    title: await getTitle(song.url, song.platform || getPlatform(song.url))
+                }))
+            )
+            return songsWithTitles
+        },
+        staleTime: 1000 * 60 * 60,
     })
-
-    const titleQueries = useQueries({
-        queries: songs.map((song) => ({
-            queryKey: ['song-title', song.id],
-            queryFn: () => getTitle(song.url, song.platform || getPlatform(song.url)),
-            staleTime: 1000 * 60 * 60,
-        })),
-    })
-
-    const titlesMap = useMemo(() => {
-        const map: Record<number, string> = {}
-        songs.forEach((song, index) => {
-            map[song.id] = titleQueries[index]?.data || song.url
-        })
-        return map
-    }, [songs, titleQueries])
 
     const uniqueUserIds = useMemo(
-        () => [...new Set(songs.map((s) => s.userId))],
-        [songs],
+        () => [...new Set(songsData.map((s) => s.userId))],
+        [songsData],
     )
     const userQueries = useQueries({
         queries: uniqueUserIds.map((userId) => ({
@@ -89,18 +80,20 @@ export function App() {
     const [isPlaying, setIsPlaying] = useState(false)
     const [isShuffled, setIsShuffled] = useState(false)
     const [repeatMode, setRepeatMode] = useState<RepeatMode>('off')
-    const [shuffledIndices, setShuffledIndices] = useState<number[]>([])
+    const [shuffledIndices, setShuffledIndices] = useState<Array<number>>([])
     const [progress, setProgress] = useState(0)
     const [currentTime, setCurrentTime] = useState(0)
     const [duration, setDuration] = useState(0)
+    const [leftPanelWidth, setLeftPanelWidth] = useState('50%')
     const audioRef = useRef<HTMLAudioElement>(null)
+    const containerRef = useRef<HTMLDivElement>(null)
 
-    const currentSong = currentSongIndex !== null ? songs[currentSongIndex] : null
-    const currentTitle = currentSong ? titlesMap[currentSong.id] || currentSong.url : ''
+    const currentSong = currentSongIndex !== null ? songsData[currentSongIndex] : null
+    const currentTitle = currentSong ? currentSong.title || currentSong.url : ''
     const currentThumbnail = currentSong ? getThumbnail(currentSong.url, currentSong.platform || getPlatform(currentSong.url)) : null
 
     const togglePlay = () => {
-        if (currentSongIndex === null && songs.length > 0) {
+        if (currentSongIndex === null && songsData.length > 0) {
             setCurrentSongIndex(0)
             setIsPlaying(true)
         } else {
@@ -109,7 +102,7 @@ export function App() {
     }
 
     const playNext = () => {
-        if (songs.length === 0) return
+        if (songsData.length === 0) return
 
         let nextIndex: number
 
@@ -126,7 +119,7 @@ export function App() {
                 }
             }
         } else {
-            if (currentSongIndex! < songs.length - 1) {
+            if (currentSongIndex! < songsData.length - 1) {
                 nextIndex = currentSongIndex! + 1
             } else {
                 if (repeatMode === 'all') {
@@ -143,7 +136,7 @@ export function App() {
     }
 
     const playPrevious = () => {
-        if (songs.length === 0) return
+        if (songsData.length === 0) return
 
         let prevIndex: number
 
@@ -163,7 +156,7 @@ export function App() {
                 prevIndex = currentSongIndex! - 1
             } else {
                 if (repeatMode === 'all') {
-                    prevIndex = songs.length - 1
+                    prevIndex = songsData.length - 1
                 } else {
                     prevIndex = 0
                 }
@@ -177,7 +170,7 @@ export function App() {
     const toggleShuffle = () => {
         setIsShuffled(!isShuffled)
         if (!isShuffled) {
-            const indices = Array.from({ length: songs.length }, (_, i) => i)
+            const indices = Array.from({ length: songsData.length }, (_, i) => i)
             for (let i = indices.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1))
                     ;[indices[i], indices[j]] = [indices[j], indices[i]]
@@ -197,14 +190,6 @@ export function App() {
                 default: return 'off'
             }
         })
-    }
-
-    const getRepeatIcon = () => {
-        switch (repeatMode) {
-            case 'all': return <Repeat className="h-5 w-5" />
-            case 'one': return <Repeat1 className="h-5 w-5" />
-            default: return <Repeat className="h-5 w-5 opacity-40" />
-        }
     }
 
     useEffect(() => {
@@ -227,10 +212,6 @@ export function App() {
         logoutMutation.mutate()
     }
 
-    const handleRetryUser = () => {
-        refetchUser()
-    }
-
     const handleRetrySongs = () => {
         refetchSongs()
     }
@@ -241,24 +222,41 @@ export function App() {
         return `${minutes}:${seconds.toString().padStart(2, '0')}`
     }
 
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (!containerRef.current) return
+        const rect = containerRef.current.getBoundingClientRect()
+        const startX = e.clientX
+        const startWidthPercent = parseFloat(leftPanelWidth.replace('%', ''))
+        const startWidth = rect.width * (startWidthPercent / 100)
+
+        const handleMouseMove = (event: MouseEvent) => {
+            const deltaX = event.clientX - startX
+            const newWidth = startWidth + deltaX
+            const newWidthPercent = (newWidth / rect.width) * 100
+            setLeftPanelWidth(`${Math.max(0, Math.min(100, newWidthPercent))}%`)
+        }
+
+        const handleMouseUp = () => {
+            document.removeEventListener('mousemove', handleMouseMove)
+            document.removeEventListener('mouseup', handleMouseUp)
+        }
+
+        document.addEventListener('mousemove', handleMouseMove)
+        document.addEventListener('mouseup', handleMouseUp)
+    }
+
     return (
         <div className="h-screen text-white flex flex-col overflow-hidden">
-            {/* Main content area - 2 columns */}
-            <div className="flex-1 flex overflow-hidden p-4 gap-4">
-                {/* Left sidebar - Song list */}
-                <Card className="flex-1 flex flex-col">
+            <div ref={containerRef} className="bg-black flex-1 flex flex-col lg:flex-row overflow-hidden p-2 sm:p-4 gap-2 sm:gap-2">
+                <Card className="flex-1 flex flex-col min-h-0 border-0" style={currentSong ? { flex: `0 0 ${leftPanelWidth}`, minWidth: 0 } : { flex: '1' }}>
                     <CardContent className="p-0 flex flex-col h-full">
-                        {/* Header */}
-                        <div className="p-6 border-b border-zinc-800">
-                            <h1 className="text-2xl font-bold mb-1">Minstrel</h1>
-                            <p className="text-sm text-zinc-400">Your Music Library</p>
+                        <div className="p-4 sm:p-6 border-b border-zinc-800">
+                            <h1 className="text-xl sm:text-2xl font-bold mb-1">Minstrel</h1>
+                            <p className="text-xs sm:text-sm text-zinc-400">Your Music Library</p>
                         </div>
-
-                        {/* Song list */}
-                        <div className="flex-1 overflow-y-auto">
+                        <div className="flex-1 overflow-y-auto min-h-0">
                             <SongList
-                                songs={songs}
-                                titlesMap={titlesMap}
+                                songs={songsData}
                                 usersMap={usersMap}
                                 songsLoading={songsLoading}
                                 songsError={songsError}
@@ -268,167 +266,49 @@ export function App() {
                     </CardContent>
                 </Card>
 
-                {/* Right side - Now playing info */}
                 {currentSong && (
-                    <div className="flex-1 ">
-                        <Card className="w-full h-full ">
-                            <CardContent className="p-12 flex flex-col items-center h-full">
-                                {/* Album art */}
-                                <div className="w-full max-w-md h-80 mb-8 rounded-lg shadow-2xl overflow-hidden bg-zinc-800">
-                                    {currentThumbnail ? (
-                                        <Image
-                                            src={currentThumbnail}
-                                            alt="Current song"
-                                            width={400}
-                                            height={320}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                            <Music className="h-32 w-32 text-zinc-600" />
-                                        </div>
-                                    )}
-                                </div>
+                    <div
+                        className="w-0.5 bg-zinc-700 cursor-col-resize opacity-0 hover:opacity-100 transition-opacity hidden lg:block"
+                        onMouseDown={handleMouseDown}
+                    />
+                )}
 
-                                {/* Song info */}
-                                <div className="w-full text-center">
-                                    <h2 className="text-3xl font-bold mb-2 truncate">{currentTitle}</h2>
-                                    <p className="text-zinc-400">Track {currentSongIndex! + 1} of {songs.length}</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
+                {currentSong && (
+                    <Card className="w-full h-full border-0">
+                        <CardContent>
+                            <NowPlaying
+                                currentSong={currentSong}
+                                currentTitle={currentTitle}
+                                currentThumbnail={currentThumbnail}
+                                currentSongIndex={currentSongIndex}
+                                songsLength={songsData.length}
+                            />
+                        </CardContent>
+                    </Card>
                 )}
             </div>
 
-            {/* Bottom player controls - fixed height */}
-            <div className="h-24  flex items-center px-4">
-                <div className="w-full flex items-center justify-between">
-                    {/* Left - Current song info */}
-                    <div className="flex items-center space-x-3 w-80">
-                        {currentThumbnail ? (
-                            <Image
-                                src={currentThumbnail}
-                                alt="Current song"
-                                width={56}
-                                height={56}
-                                className="w-14 h-14 rounded object-cover"
-                            />
-                        ) : (
-                            <div className="w-14 h-14 rounded bg-zinc-800 flex items-center justify-center">
-                                <Music className="h-6 w-6 text-zinc-600" />
-                            </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">
-                                {currentSong ? currentTitle : 'No song selected'}
-                            </p>
-                            <p className="text-xs text-zinc-400 truncate">
-                                {currentSong ? `Track ${currentSongIndex! + 1} of ${songs.length}` : 'Select a song to play'}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Center - Controls */}
-                    <div className="flex-1 max-w-2xl mx-8">
-                        <div className="flex items-center justify-center space-x-4 mb-2">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={toggleShuffle}
-                                className={`${isShuffled ? 'text-green-500' : 'text-zinc-400'} hover:text-white`}
-                            >
-                                <Shuffle className="h-5 w-5" />
-                            </Button>
-
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={playPrevious}
-                                disabled={songs.length === 0}
-                                className="text-zinc-400 hover:text-white"
-                            >
-                                <SkipBack className="h-5 w-5" />
-                            </Button>
-
-                            <Button
-                                variant="default"
-                                size="lg"
-                                onClick={togglePlay}
-                                className="rounded-full w-12 h-12 bg-white text-black hover:bg-white/90 hover:scale-105 transition-transform"
-                            >
-                                {isPlaying ? (
-                                    <Pause className="h-5 w-5" />
-                                ) : (
-                                    <Play className="h-5 w-5 ml-0.5" />
-                                )}
-                            </Button>
-
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={playNext}
-                                disabled={songs.length === 0}
-                                className="text-zinc-400 hover:text-white"
-                            >
-                                <SkipForward className="h-5 w-5" />
-                            </Button>
-
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={toggleRepeat}
-                                className={`${repeatMode !== 'off' ? 'text-green-500' : 'text-zinc-400'} hover:text-white`}
-                            >
-                                {getRepeatIcon()}
-                            </Button>
-                        </div>
-
-                        {/* Progress bar */}
-                        <div className="flex items-center space-x-2">
-                            <span className="text-xs text-zinc-400 w-10 text-right">{formatTime(currentTime)}</span>
-                            <Progress value={progress} className="flex-1 h-1 bg-zinc-700" />
-                            <span className="text-xs text-zinc-400 w-10">{formatTime(duration)}</span>
-                        </div>
-                    </div>
-
-                    {/* Right - User profile */}
-                    <div className="w-80 flex justify-end">
-                        {user && (
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="ghost" className="flex items-center space-x-2 hover:bg-zinc-800">
-                                        {user.avatar && (
-                                            <Image
-                                                src={`https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`}
-                                                alt="Avatar"
-                                                width={32}
-                                                height={32}
-                                                className="w-8 h-8 rounded-full"
-                                            />
-                                        )}
-                                        <span className="text-sm font-medium">{user.username}</span>
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-56 bg-zinc-800 border-zinc-700" align="end">
-                                    <div className="space-y-2">
-                                        <p className="text-sm text-zinc-400">
-                                            Verified and in the guild
-                                        </p>
-                                        <Button
-                                            onClick={handleLogout}
-                                            variant="destructive"
-                                            className="w-full"
-                                        >
-                                            Logout
-                                        </Button>
-                                    </div>
-                                </PopoverContent>
-                            </Popover>
-                        )}
-                    </div>
-                </div>
-            </div>
+            <PlayerControls
+                currentSong={currentSong}
+                currentTitle={currentTitle}
+                currentThumbnail={currentThumbnail}
+                currentSongIndex={currentSongIndex}
+                songsLength={songsData.length}
+                isPlaying={isPlaying}
+                togglePlay={togglePlay}
+                toggleShuffle={toggleShuffle}
+                isShuffled={isShuffled}
+                playPrevious={playPrevious}
+                playNext={playNext}
+                toggleRepeat={toggleRepeat}
+                repeatMode={repeatMode}
+                progress={progress}
+                currentTime={currentTime}
+                duration={duration}
+                formatTime={formatTime}
+                user={user}
+                handleLogout={handleLogout}
+            />
             <audio
                 ref={audioRef}
                 onTimeUpdate={() => {
