@@ -7,4 +7,9 @@ export type Song = {
     url: string
     platform: string | null
     title?: string
+    user?: {
+        id: string
+        username: string
+        avatar: string
+    } | null
 }

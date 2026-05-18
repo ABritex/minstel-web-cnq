@@ -1,17 +1,7 @@
-import { createServerFn } from '@tanstack/react-start'
-import { eq } from 'drizzle-orm'
-import { db } from '@/db'
-import { songs } from '@/db/schema'
-import { env } from '@/env'
+import type { Song } from './types'
 
-export const getSongs = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  const songList = await db
-    .select()
-    .from(songs)
-    .where(eq(songs.serverId, env.GUILD_ID))
-    .orderBy(songs.id)
-
-  return songList
-})
+export async function getSongs(): Promise<Array<Song>> {
+    const res = await fetch('/api/songs')
+    if (!res.ok) throw new Error('Failed to fetch songs')
+    return res.json()
+}
