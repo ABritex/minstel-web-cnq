@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(_req: VercelRequest, res: VercelResponse) {
     try {
         const { neon } = await import('@neondatabase/serverless')
         const sql = neon(process.env.DATABASE_URL!)

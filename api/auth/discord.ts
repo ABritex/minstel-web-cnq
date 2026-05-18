@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-export default function handler(req: VercelRequest, res: VercelResponse) {
+export default function handler(_req: VercelRequest, res: VercelResponse) {
     const clientId = process.env.DISCORD_CLIENT_ID!
     const serverUrl = process.env.SERVER_URL!
     const redirectUri = `${serverUrl}/api/auth/discord/callback`

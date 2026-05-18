@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import type { Song } from '@/data/types'
 import { getCurrentUser } from '@/lib/auth'
@@ -10,6 +10,7 @@ export const Route = createFileRoute('/')({ component: App })
 
 function App() {
     const navigate = useNavigate()
+    const queryClient = useQueryClient()
 
     const { data: user, isLoading: userLoading } = useQuery({
         queryKey: ['currentUser'],
@@ -55,6 +56,7 @@ function App() {
                         <button
                             onClick={() => {
                                 fetch('/api/auth/logout', { method: 'POST' }).then(() => {
+                                    queryClient.invalidateQueries({ queryKey: ['currentUser'] })
                                     navigate({ to: '/login' })
                                 })
                             }}
