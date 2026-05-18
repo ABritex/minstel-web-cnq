@@ -1,5 +1,5 @@
 import { Image } from '@unpic/react'
-import { Music, User } from 'lucide-react'
+import { Music } from 'lucide-react'
 import type { Song } from '@/data/types'
 import { Skeleton } from '@/components/ui/skeleton'
 
