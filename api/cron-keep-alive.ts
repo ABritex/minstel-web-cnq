@@ -1,5 +1,5 @@
-import { setSecurityHeaders } from './lib/headers'
-import { getEnv } from './lib/env'
+import { setSecurityHeaders } from '../lib/headers.js'
+import { getEnv } from '../lib/env.js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {

@@ -58,9 +58,9 @@ minstrel-bot/          # Discord bot (ingests songs)
 minstel-web-cnq/       # This repo — web app (presents songs)
   ├── api/             # Vercel serverless functions
   │   ├── auth/        # Discord OAuth flow + JWT session handling
-  │   ├── lib/         # Shared: env validation, JWT, headers, rate limiting
   │   ├── songs.ts     # Song list endpoint with YouTube video ID extraction
   │   └── cron-keep-alive.ts
+  ├── lib/             # Shared server code: env validation, JWT, headers, rate limiting
   └── src/             # React SPA
       ├── routes/      # TanStack Router pages (login, index)
       └── components/  # FerroFluid, SongList, UI primitives

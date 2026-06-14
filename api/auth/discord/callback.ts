@@ -1,7 +1,7 @@
-import { setSecurityHeaders } from '../../lib/headers'
-import { getEnv } from '../../lib/env'
-import { checkRateLimit } from '../../lib/rate-limit'
-import { signUserToken } from '../../lib/jwt'
+import { setSecurityHeaders } from '../../../lib/headers.js'
+import { getEnv } from '../../../lib/env.js'
+import { checkRateLimit } from '../../../lib/rate-limit.js'
+import { signUserToken } from '../../../lib/jwt.js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

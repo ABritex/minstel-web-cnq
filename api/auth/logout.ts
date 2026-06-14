@@ -1,5 +1,5 @@
-import { setSecurityHeaders } from '../lib/headers'
-import { checkRateLimit } from '../lib/rate-limit'
+import { setSecurityHeaders } from '../../lib/headers.js'
+import { checkRateLimit } from '../../lib/rate-limit.js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 export default function handler(req: VercelRequest, res: VercelResponse) {

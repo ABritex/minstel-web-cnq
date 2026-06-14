@@ -1,7 +1,7 @@
-import { setSecurityHeaders } from '../lib/headers'
-import { checkRateLimit } from '../lib/rate-limit'
-import { verifyUserToken } from '../lib/jwt'
-import { getEnv } from '../lib/env'
+import { setSecurityHeaders } from '../../lib/headers.js'
+import { checkRateLimit } from '../../lib/rate-limit.js'
+import { verifyUserToken } from '../../lib/jwt.js'
+import { getEnv } from '../../lib/env.js'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 const guildCache = new Map<string, { verified: boolean; expiresAt: number }>()
