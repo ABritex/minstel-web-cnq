@@ -6,6 +6,11 @@
         "prettier.config.js",
         "vite.config.js"
     ],
+    "exclude": [
+        "node_modules",
+        "drizzle.config.ts",
+        "drizzle"
+    ],
     "compilerOptions": {
         "target": "ES2022",
         "jsx": "react-jsx",

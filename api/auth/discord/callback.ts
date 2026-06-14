@@ -1,6 +1,18 @@
+import { setSecurityHeaders } from '../../lib/headers'
+import { getEnv } from '../../lib/env'
+import { checkRateLimit } from '../../lib/rate-limit'
+import { signUserToken } from '../../lib/jwt'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+    setSecurityHeaders(res)
+
+    const ip = req.headers['x-forwarded-for']?.toString() || req.socket.remoteAddress || 'unknown'
+    if (!checkRateLimit(ip)) {
+        res.status(429).json({ error: 'Too many requests' })
+        return
+    }
+
     const { code, error: oauthError } = req.query
 
     if (oauthError) {
@@ -8,26 +20,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return
     }
 
-    if (!code) {
+    if (!code || typeof code !== 'string') {
         res.redirect(302, '/login?error=no_code')
         return
     }
 
     try {
-        const clientId = process.env.DISCORD_CLIENT_ID!
-        const clientSecret = process.env.DISCORD_CLIENT_SECRET!
-        const serverUrl = process.env.SERVER_URL!
-        const guildId = process.env.GUILD_ID!
+        const env = getEnv()
 
         const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
-                client_id: clientId,
-                client_secret: clientSecret,
+                client_id: env.DISCORD_CLIENT_ID,
+                client_secret: env.DISCORD_CLIENT_SECRET,
                 grant_type: 'authorization_code',
-                code: String(code),
-                redirect_uri: `${serverUrl}/api/auth/discord/callback`,
+                code,
+                redirect_uri: `${env.SERVER_URL}/api/auth/discord/callback`,
             }),
         })
 
@@ -51,20 +60,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const user = await userRes.json()
         const guilds = await guildsRes.json()
 
-        const isInGuild = guilds.some((g: any) => g.id === guildId)
+        const isInGuild = guilds.some((g: any) => g.id === env.GUILD_ID)
 
         if (!isInGuild) {
             res.redirect(302, '/login?error=not_in_guild')
             return
         }
 
-        const userData = JSON.stringify({
+        const token = signUserToken({
             id: user.id,
             username: user.username,
             avatar: user.avatar || '',
         })
 
-        res.setHeader('Set-Cookie', `discord_user=${encodeURIComponent(userData)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400`)
+        res.setHeader('Set-Cookie', `discord_token=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400`)
         res.redirect(302, '/login?verified=true')
     } catch (err) {
         console.error('Discord OAuth error:', err)

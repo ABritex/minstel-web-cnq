@@ -6,6 +6,7 @@ export type Song = {
     userId: string
     url: string
     platform: string | null
+    videoId: string | null
     title?: string
     user?: {
         id: string
