@@ -70,6 +70,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } catch { }
         }))
 
+        const videoIds = [...new Set(rows.map((r: any) => extractYouTubeId(r.url)).filter(Boolean))] as Array<string>
+        const titlesMap: Record<string, string> = {}
+
+        await Promise.all(videoIds.map(async (id: string) => {
+            try {
+                const resp = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`, {
+                    signal: AbortSignal.timeout(3000),
+                })
+                if (resp.ok) {
+                    const data = await resp.json()
+                    if (data?.title) titlesMap[id] = data.title
+                }
+            } catch { }
+        }))
+
         const songs = rows.map((r: any) => {
             const videoId = extractYouTubeId(r.url)
             return {
@@ -81,6 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 url: r.url,
                 platform: r.platform,
                 videoId,
+                title: videoId ? (titlesMap[videoId] || null) : null,
                 user: usersMap[r.user_id] || null,
             }
         })
